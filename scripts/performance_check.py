@@ -23,8 +23,8 @@ from scripts.fabricate_csvs import fabricate
 def run(size: int, output_dir: Path) -> dict[str, float | int]:
     d1_path, d2_path = fabricate(output_dir, size)
     parser = UsAddressParser()
-    records1 = dataframe_to_records(load_csv(d1_path), "dataset1", parser)
-    records2 = dataframe_to_records(load_csv(d2_path), "dataset2", parser)
+    records1 = dataframe_to_records(load_csv(d1_path), parser)
+    records2 = dataframe_to_records(load_csv(d2_path), parser)
     index = CandidateIndex.build(records2)
     candidate_count = sum(len(index.query(record)) for record in records1)
     start = time.perf_counter()

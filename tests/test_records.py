@@ -3,7 +3,7 @@ from __future__ import annotations
 import pandas as pd
 
 from ivix_matcher.address_parser import UsAddressParser
-from ivix_matcher.records import dataframe_to_records, dataset1_row_to_record, dataset2_row_to_record
+from ivix_matcher.records import UnknownDatasetFormatError, dataframe_to_records, dataset1_row_to_record, dataset2_row_to_record, detect_record_format
 
 
 def test_dataset1_row_to_record_uses_full_address_and_name() -> None:
@@ -67,7 +67,31 @@ def test_dataset2_falls_back_to_account_name_when_name_missing() -> None:
 def test_dataframe_to_records_dispatches_by_dataset() -> None:
     df = pd.DataFrame([{"id": "d1", "address": "1 Main St, Oakland, CA 94612", "name": "Acme Inc"}])
 
-    records = dataframe_to_records(df, "dataset1", UsAddressParser())
+    records = dataframe_to_records(df, UsAddressParser())
 
     assert len(records) == 1
     assert records[0].record_id == "d1"
+
+
+def test_detect_record_format_allows_extra_headers() -> None:
+    assert detect_record_format(["id", "address", "name", "extra"]) == "full_address"
+    assert detect_record_format(["id", "account_name", "owner_name", "name", "street", "city", "zip", "extra"]) == "split_address"
+
+
+def test_detect_record_format_prefers_split_when_both_shapes_qualify() -> None:
+    headers = ["id", "address", "account_name", "owner_name", "name", "street", "city", "zip"]
+    assert detect_record_format(headers) == "split_address"
+
+
+def test_dataframe_to_records_reports_expected_headers_for_unknown_shape() -> None:
+    df = pd.DataFrame([{"id": "1", "name": "Missing Address"}])
+    try:
+        dataframe_to_records(df, UsAddressParser())
+    except UnknownDatasetFormatError as exc:
+        message = str(exc)
+        assert "full-address structure" in message
+        assert "split-address structure" in message
+        assert "address" in message
+        assert "street" in message
+    else:
+        raise AssertionError("Expected UnknownDatasetFormatError")

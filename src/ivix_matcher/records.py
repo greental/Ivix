@@ -9,6 +9,14 @@ from .models import BusinessRecord
 from .normalize import normalize_name
 
 
+FULL_ADDRESS_REQUIRED_HEADERS = frozenset({"id", "address", "name"})
+SPLIT_ADDRESS_REQUIRED_HEADERS = frozenset({"id", "account_name", "owner_name", "name", "street", "city", "zip"})
+
+
+class UnknownDatasetFormatError(ValueError):
+    """Raised when CSV headers do not match a supported input shape."""
+
+
 def _row_dict(row: pd.Series) -> dict[str, str]:
     return {str(key): str(value) for key, value in row.to_dict().items()}
 
@@ -61,9 +69,24 @@ def dataset2_row_to_record(row: pd.Series, parser: AddressParser) -> BusinessRec
     )
 
 
-def dataframe_to_records(df: pd.DataFrame, dataset: str, parser: AddressParser) -> list[BusinessRecord]:
-    if dataset == "dataset1":
+def detect_record_format(columns: Iterable[str]) -> str:
+    headers = set(columns)
+    if SPLIT_ADDRESS_REQUIRED_HEADERS.issubset(headers):
+        return "split_address"
+    if FULL_ADDRESS_REQUIRED_HEADERS.issubset(headers):
+        return "full_address"
+    raise UnknownDatasetFormatError(
+        "Unsupported CSV headers. Expected at least one of: "
+        f"full-address structure {sorted(FULL_ADDRESS_REQUIRED_HEADERS)} or "
+        f"split-address structure {sorted(SPLIT_ADDRESS_REQUIRED_HEADERS)}. "
+        f"Actual headers: {sorted(headers)}"
+    )
+
+
+def dataframe_to_records(df: pd.DataFrame, parser: AddressParser) -> list[BusinessRecord]:
+    record_format = detect_record_format(df.columns)
+    if record_format == "full_address":
         return [dataset1_row_to_record(row, parser) for _, row in df.iterrows()]
-    if dataset == "dataset2":
+    if record_format == "split_address":
         return [dataset2_row_to_record(row, parser) for _, row in df.iterrows()]
-    raise ValueError(f"Unknown dataset: {dataset}")
+    raise AssertionError(f"Unexpected detected record format: {record_format}")
