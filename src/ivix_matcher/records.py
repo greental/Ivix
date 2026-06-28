@@ -41,6 +41,7 @@ def dataset2_row_to_record(row: pd.Series, parser: AddressParser) -> BusinessRec
     raw = _row_dict(row)
     raw_name = raw.get("name", "") or raw.get("account_name", "")
     alternate_names = _clean_names([raw.get("account_name", "")])
+    legal_names = _clean_names([raw.get("owner_name", "")])
     return BusinessRecord(
         record_id=raw.get("id", ""),
         source="dataset2",
@@ -48,6 +49,8 @@ def dataset2_row_to_record(row: pd.Series, parser: AddressParser) -> BusinessRec
         normalized_name=normalize_name(raw_name),
         alternate_names=alternate_names,
         normalized_alternate_names=tuple(normalize_name(name) for name in alternate_names),
+        legal_entity_names=legal_names,
+        normalized_legal_entity_names=tuple(normalize_name(name) for name in legal_names),
         address=parser.parse(
             raw.get("street", ""),
             city=raw.get("city", ""),

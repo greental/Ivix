@@ -5,4 +5,5 @@ __pycache__/
 venv/
 matches.csv
 match_debug.csv
+selected_candidates.csv
 generated/test-output/

@@ -36,7 +36,7 @@ def test_name_fingerprint_fallback_finds_moved_business() -> None:
     candidates = CandidateIndex.build([d2]).query(d1)
 
     assert [candidate.record2.record_id for candidate in candidates] == ["2"]
-    assert "name:fingerprint" in candidates[0].blocking_reasons
+    assert "name_fallback:business" in candidates[0].blocking_reasons
 
 
 def test_candidate_query_deduplicates_records_found_by_multiple_keys() -> None:
@@ -47,7 +47,7 @@ def test_candidate_query_deduplicates_records_found_by_multiple_keys() -> None:
     candidates = CandidateIndex.build([d2]).query(d1)
 
     assert len(candidates) == 1
-    assert "name:fingerprint" in candidates[0].blocking_reasons
+    assert "name_fallback:business" in candidates[0].blocking_reasons
 
 
 def test_generate_name_fingerprints_uses_strong_tokens() -> None:

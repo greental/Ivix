@@ -14,7 +14,7 @@ for path in (ROOT, SRC):
 from ivix_matcher.address_parser import UsAddressParser
 from ivix_matcher.candidates import CandidateIndex
 from ivix_matcher.io import load_csv
-from ivix_matcher.matching import match_records
+from ivix_matcher.matching import run_matching
 from ivix_matcher.records import dataframe_to_records
 
 from scripts.fabricate_csvs import fabricate
@@ -28,9 +28,15 @@ def run(size: int, output_dir: Path) -> dict[str, float | int]:
     index = CandidateIndex.build(records2)
     candidate_count = sum(len(index.query(record)) for record in records1)
     start = time.perf_counter()
-    results = match_records(records1, records2)
+    run_result = run_matching(records1, records2)
     runtime = time.perf_counter() - start
-    return {"size": size, "candidate_count": candidate_count, "results": len(results), "runtime_seconds": round(runtime, 4)}
+    return {
+        "size": size,
+        "candidate_count": candidate_count,
+        "selected_results": len(run_result.selected_results),
+        "debug_candidates": len(run_result.debug_results),
+        "runtime_seconds": round(runtime, 4),
+    }
 
 
 def main() -> int:
@@ -40,6 +46,7 @@ def main() -> int:
     args = parser.parse_args()
     metrics = run(args.size, Path(args.output_dir))
     print(metrics)
+    print("Note: match_debug.csv-style output can grow with candidate_count on large fabricated datasets.")
     return 0
 
 

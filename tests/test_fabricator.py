@@ -34,5 +34,6 @@ def test_performance_check_reports_runtime_and_candidate_counts(tmp_path: Path) 
 
     assert metrics["size"] == 20
     assert metrics["candidate_count"] >= 0
-    assert metrics["results"] <= 20
+    assert metrics["selected_results"] <= 20
+    assert metrics["debug_candidates"] == metrics["candidate_count"]
     assert metrics["runtime_seconds"] >= 0

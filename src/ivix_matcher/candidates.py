@@ -4,6 +4,7 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 
 from .models import AddressParts, BusinessRecord, MatchCandidate
+from .normalize import generate_name_variants
 
 
 MIN_NAME_TOKEN_LENGTH = 4
@@ -37,20 +38,30 @@ def generate_address_keys(address: AddressParts) -> tuple[tuple[str, tuple[str, 
     return tuple(dict.fromkeys(keys))
 
 
-def generate_name_fingerprints(record: BusinessRecord) -> tuple[str, ...]:
+def _fingerprints_from_names(names: tuple[str, ...]) -> tuple[str, ...]:
     tokens: set[str] = set()
-    for name in record.all_normalized_names:
-        parts = [part for part in name.split() if len(part) >= MIN_NAME_TOKEN_LENGTH and part != "and"]
+    for name in names:
+        variants = generate_name_variants(name) or (name,)
+        parts = [part for variant in variants for part in variant.split() if len(part) >= MIN_NAME_TOKEN_LENGTH and part != "and"]
         tokens.update(parts)
         if len(parts) >= 2:
             tokens.add(" ".join(sorted(parts[:3])))
     return tuple(sorted(tokens))
 
 
+def generate_name_fingerprints(record: BusinessRecord) -> tuple[str, ...]:
+    return _fingerprints_from_names(record.all_normalized_names)
+
+
+def generate_legal_name_fingerprints(record: BusinessRecord) -> tuple[str, ...]:
+    return _fingerprints_from_names(record.all_normalized_legal_names)
+
+
 @dataclass
 class CandidateIndex:
     address_indexes: dict[str, dict[tuple[str, ...], list[BusinessRecord]]] = field(default_factory=lambda: defaultdict(lambda: defaultdict(list)))
     name_index: dict[str, list[BusinessRecord]] = field(default_factory=lambda: defaultdict(list))
+    legal_name_index: dict[str, list[BusinessRecord]] = field(default_factory=lambda: defaultdict(list))
 
     @classmethod
     def build(cls, dataset2_records: list[BusinessRecord]) -> "CandidateIndex":
@@ -60,6 +71,8 @@ class CandidateIndex:
                 index.address_indexes[key_type][key].append(record)
             for fingerprint in generate_name_fingerprints(record):
                 index.name_index[fingerprint].append(record)
+            for fingerprint in generate_legal_name_fingerprints(record):
+                index.legal_name_index[fingerprint].append(record)
         return index
 
     def query(self, record: BusinessRecord) -> list[MatchCandidate]:
@@ -69,7 +82,9 @@ class CandidateIndex:
                 found.setdefault(candidate.record_id, (candidate, set()))[1].add(f"address:{key_type}")
         for fingerprint in generate_name_fingerprints(record):
             for candidate in self.name_index.get(fingerprint, []):
-                found.setdefault(candidate.record_id, (candidate, set()))[1].add("name:fingerprint")
+                found.setdefault(candidate.record_id, (candidate, set()))[1].add("name_fallback:business")
+            for candidate in self.legal_name_index.get(fingerprint, []):
+                found.setdefault(candidate.record_id, (candidate, set()))[1].add("name_fallback:owner_name")
         return [
             MatchCandidate(record1=record, record2=candidate, blocking_reasons=tuple(sorted(reasons)))
             for candidate, reasons in found.values()

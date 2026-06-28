@@ -5,13 +5,25 @@ from ivix_matcher.models import AddressParts, BusinessRecord, MatchResult
 
 
 def result(id_1: str, id_2: str, name: float, address: float, combined: float | None = None) -> MatchResult:
-    return MatchResult(id_1, id_2, address, name, combined if combined is not None else (name * 0.62 + address * 0.38), "unclassified", ())
+    return MatchResult(id_1, id_2, address, name, 0.0, "name", "", combined if combined is not None else (name * 0.62 + address * 0.38), "unclassified", ())
 
 
 def test_strong_name_weak_address_is_match_for_moved_business() -> None:
     classified = classify_result(result("1", "2", 96, 20))
     assert classified.decision == "match"
-    assert "decision:strong_name_weak_address_moved_business_allowed" in classified.reasons
+    assert "decision:strong_business_name_weak_address_moved_business_allowed" in classified.reasons
+
+
+def test_owner_name_with_strong_address_can_match() -> None:
+    classified = classify_result(MatchResult("1", "2", 96, 20, 98, "owner_name", "T D Oil & Gas LLC", 90, "unclassified", ()))
+    assert classified.decision == "match"
+    assert "matched by legal entity/owner_name + strong address" in classified.reasons
+
+
+def test_owner_name_with_weak_address_stays_review() -> None:
+    classified = classify_result(MatchResult("1", "2", 40, 20, 98, "owner_name", "T D Oil & Gas LLC", 60, "unclassified", ()))
+    assert classified.decision == "review"
+    assert "decision:strong_legal_entity_weak_address_review" in classified.reasons
 
 
 def test_strong_address_weak_name_is_review_not_match() -> None:
