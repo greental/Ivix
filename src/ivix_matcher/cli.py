@@ -2,7 +2,11 @@ from __future__ import annotations
 
 import argparse
 
+from .address_parser import UsAddressParser
 from .io import ensure_output_not_input, inspect_headers, load_csv
+from .matching import match_records
+from .output import write_debug, write_matches
+from .records import dataframe_to_records
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -24,11 +28,17 @@ def main(argv: list[str] | None = None) -> int:
     ensure_output_not_input(args.output, input_paths)
     ensure_output_not_input(args.debug_output, input_paths)
 
-    # Slice 1: prove the CLI can load and inspect actual headers. Later slices
-    # replace this placeholder with the full matching pipeline.
     df1 = load_csv(args.dataset1)
     df2 = load_csv(args.dataset2)
     headers1, headers2 = inspect_headers(args.dataset1, args.dataset2)
     print(f"Loaded dataset1: {len(df1)} rows, headers={headers1}")
     print(f"Loaded dataset2: {len(df2)} rows, headers={headers2}")
+    parser = UsAddressParser()
+    records1 = dataframe_to_records(df1, "dataset1", parser)
+    records2 = dataframe_to_records(df2, "dataset2", parser)
+    results = match_records(records1, records2)
+    write_matches(results, args.output, input_paths)
+    write_debug(results, args.debug_output, input_paths)
+    print(f"Wrote matches: {args.output}")
+    print(f"Wrote debug: {args.debug_output}")
     return 0
