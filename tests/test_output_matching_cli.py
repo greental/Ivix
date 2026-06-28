@@ -6,7 +6,7 @@ import pandas as pd
 import pytest
 
 from ivix_matcher.cli import main
-from ivix_matcher.matching import match_records
+from ivix_matcher.matching import match_records, run_matching
 from ivix_matcher.models import AddressParts, BusinessRecord, MatchResult
 from ivix_matcher.output import write_debug, write_matches, write_selected_candidates
 
@@ -19,6 +19,12 @@ def test_match_records_returns_no_candidate_for_records_without_candidates() -> 
     results = match_records([rec("1", "abc", AddressParts())], [])
     assert len(results) == 1
     assert results[0].decision == "no_candidate"
+
+
+def test_debug_results_include_no_candidate_rows() -> None:
+    run = run_matching([rec("1", "abc", AddressParts())], [])
+    assert len(run.debug_results) == 1
+    assert run.debug_results[0].decision == "no_candidate"
 
 
 def test_match_records_preserves_dataset1_rows_after_conflict_resolution() -> None:
