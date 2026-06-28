@@ -21,6 +21,18 @@ def test_match_records_returns_no_candidate_for_records_without_candidates() -> 
     assert results[0].decision == "no_candidate"
 
 
+def test_match_records_preserves_dataset1_rows_after_conflict_resolution() -> None:
+    addr = AddressParts(city="oakland", postal_code5="94612", street_number="1", street_name="main", street_type="st", normalized_street="main st")
+    d1 = [rec("1", "acme market", addr), rec("2", "acme market", addr)]
+    d2 = [rec("x", "acme market", addr)]
+
+    results = match_records(d1, d2)
+
+    assert len(results) == 2
+    assert sum(1 for result in results if result.id_2 == "x") == 1
+    assert sum(1 for result in results if result.id_2 == "") == 1
+
+
 def test_write_matches_and_debug_outputs_expected_columns(tmp_path: Path) -> None:
     result = MatchResult("1", "2", 80, 95, 89.3, "match", ("why",))
     matches = tmp_path / "matches.csv"

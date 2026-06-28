@@ -55,20 +55,32 @@ def choose_best_result(results: list[MatchResult], record: BusinessRecord | None
 
 
 def resolve_one_to_one(results: list[MatchResult]) -> list[MatchResult]:
-    """Keep each dataset1 and dataset2 id at most once, preferring strongest matches."""
+    """Resolve dataset2 conflicts while preserving one result row per dataset1 id.
+
+    Winners keep their selected dataset2 id. A losing dataset1 keeps its debug
+    row, but its id_2 is cleared so output matches remain one-to-one.
+    """
     ordered = sorted(results, key=lambda r: (r.combined_score, r.name_score, r.address_score), reverse=True)
     used_1: set[str] = set()
     used_2: set[str] = set()
-    selected: list[MatchResult] = []
+    selected_by_id1: dict[str, MatchResult] = {}
 
     for result in ordered:
         if result.id_1 in used_1:
             continue
         if result.id_2 and result.id_2 in used_2:
+            conflict = replace(
+                result,
+                id_2="",
+                decision="best_candidate_below_threshold",
+                reasons=(*result.reasons, f"decision:conflict_lost_dataset2={result.id_2}"),
+            )
+            selected_by_id1[result.id_1] = conflict
+            used_1.add(result.id_1)
             continue
-        selected.append(result)
+        selected_by_id1[result.id_1] = result
         used_1.add(result.id_1)
         if result.id_2:
             used_2.add(result.id_2)
 
-    return sorted(selected, key=lambda r: r.id_1)
+    return [selected_by_id1[result.id_1] for result in sorted(results, key=lambda r: r.id_1) if result.id_1 in selected_by_id1]

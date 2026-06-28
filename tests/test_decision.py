@@ -45,4 +45,5 @@ def test_resolve_one_to_one_prefers_combined_then_name_score() -> None:
         result("c", "y", 80, 80, 80),
     ])
 
-    assert [(r.id_1, r.id_2) for r in resolved] == [("a", "x"), ("c", "y")]
+    assert [(r.id_1, r.id_2) for r in resolved] == [("a", "x"), ("b", ""), ("c", "y")]
+    assert "decision:conflict_lost_dataset2=x" in resolved[1].reasons
