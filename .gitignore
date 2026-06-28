@@ -1,0 +1,8 @@
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+matches.csv
+match_debug.csv
+generated/test-output/
