@@ -1,0 +1,50 @@
+{
+  "schemas": {
+    "full_address": {
+      "id": "id",
+      "business_name": "name",
+      "full_address": "address",
+      "country_default": "us"
+    },
+    "split_address": {
+      "id": "id",
+      "business_name": "name",
+      "alternate_business_names": ["account_name"],
+      "legal_entity_names": ["owner_name"],
+      "street": "street",
+      "city": "city",
+      "postal_code": "zip",
+      "country_default": "us"
+    }
+  },
+  "blocking": {
+    "scope_fields": [],
+    "fallback_scopes": true,
+    "address_keys": [
+      ["postal_code5", "street_number"],
+      ["city", "street_number"],
+      ["postal_code5", "normalized_street"],
+      ["city", "normalized_street"]
+    ]
+  },
+  "name_variants": {
+    "legal_suffixes": ["co", "company", "corp", "corporation", "inc", "incorporated", "llc", "ltd", "limited", "lp", "llp", "pllc"],
+    "token_replacements": {
+      "pizzeria": ["pizza"],
+      "pizza": ["pizzeria"],
+      "gastrobar": ["gastro bar"],
+      "gastro bar": ["gastrobar"]
+    },
+    "compact_space_variants": true,
+    "initial_pair_compaction": true,
+    "max_variants_per_name": 20
+  },
+  "decision_rules": [
+    {"name": "strong_business_name", "decision": "match", "conditions": {"business_name_score_gte": 92}},
+    {"name": "strong_legal_entity_with_address", "decision": "match", "conditions": {"legal_entity_score_gte": 92, "address_score_gte": 85}, "reason": "matched by legal entity/owner_name + strong address"},
+    {"name": "strong_legal_entity_weak_address", "decision": "review", "conditions": {"legal_entity_score_gte": 92}},
+    {"name": "medium_business_name_strong_address", "decision": "review", "conditions": {"business_name_score_gte": 75, "address_score_gte": 80}},
+    {"name": "weak_name_strong_address", "decision": "review", "conditions": {"business_name_score_lt": 75, "address_score_gte": 80}}
+  ],
+  "default_decision": "best_candidate_below_threshold"
+}
