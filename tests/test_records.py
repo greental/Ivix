@@ -3,7 +3,7 @@ from __future__ import annotations
 import pandas as pd
 
 from ivix_matcher.address_parser import UsAddressParser
-from ivix_matcher.records import UnknownDatasetFormatError, dataframe_to_records, dataset1_row_to_record, dataset2_row_to_record, detect_record_format
+from ivix_matcher.records import UnknownDatasetFormatError, dataframe_to_records, dataframes_to_query_and_index_records, dataset1_row_to_record, dataset2_row_to_record, detect_record_format
 
 
 def test_dataset1_row_to_record_uses_full_address_and_name() -> None:
@@ -93,5 +93,39 @@ def test_dataframe_to_records_reports_expected_headers_for_unknown_shape() -> No
         assert "split-address structure" in message
         assert "address" in message
         assert "street" in message
+    else:
+        raise AssertionError("Expected UnknownDatasetFormatError")
+
+
+def test_dataframes_to_query_and_index_records_is_order_independent() -> None:
+    full = pd.DataFrame([{"id": "d1", "address": "1 Main St, Oakland, CA 94612", "name": "Acme Inc"}])
+    split = pd.DataFrame([
+        {
+            "id": "d2",
+            "account_name": "Acme Inc",
+            "owner_name": "Owner",
+            "name": "Acme Inc",
+            "street": "1 Main St",
+            "city": "Oakland",
+            "zip": "94612",
+        }
+    ])
+
+    query_records, index_records = dataframes_to_query_and_index_records(split, full, UsAddressParser())
+
+    assert query_records[0].source == "dataset1"
+    assert query_records[0].record_id == "d1"
+    assert index_records[0].source == "dataset2"
+    assert index_records[0].record_id == "d2"
+
+
+def test_dataframes_to_query_and_index_records_errors_when_roles_cannot_be_assigned() -> None:
+    first = pd.DataFrame([{"id": "a", "address": "1 Main St", "name": "A"}])
+    second = pd.DataFrame([{"id": "b", "address": "2 Main St", "name": "B"}])
+
+    try:
+        dataframes_to_query_and_index_records(first, second, UsAddressParser())
+    except UnknownDatasetFormatError as exc:
+        assert "Could not assign query/index roles" in str(exc)
     else:
         raise AssertionError("Expected UnknownDatasetFormatError")

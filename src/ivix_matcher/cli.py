@@ -6,7 +6,7 @@ from .address_parser import UsAddressParser
 from .io import ensure_output_not_input, inspect_headers, load_csv
 from .matching import run_matching
 from .output import write_debug, write_matches, write_selected_candidates
-from .records import dataframe_to_records
+from .records import dataframes_to_query_and_index_records
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -40,8 +40,8 @@ def main(argv: list[str] | None = None) -> int:
     print(f"Loaded dataset1: {len(df1)} rows, headers={headers1}")
     print(f"Loaded dataset2: {len(df2)} rows, headers={headers2}")
     parser = UsAddressParser()
-    records1 = dataframe_to_records(df1, parser)
-    records2 = dataframe_to_records(df2, parser)
+    records1, records2 = dataframes_to_query_and_index_records(df1, df2, parser)
+    print("Assigned query side from full-address headers and index side from split-address headers")
     run = run_matching(records1, records2)
     write_matches(run.selected_results, args.output, input_paths)
     write_selected_candidates(run.selected_results, args.selected_output, input_paths)
