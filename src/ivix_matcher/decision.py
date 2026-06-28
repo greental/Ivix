@@ -2,41 +2,61 @@ from __future__ import annotations
 
 from dataclasses import replace
 
+from .config import ConfigError, MatchingConfig, load_config
 from .models import BusinessRecord, MatchResult
 
 
-def classify_result(result: MatchResult) -> MatchResult:
-    """Apply deterministic decision rules to one scored candidate."""
-    business_name = result.business_name_score
-    legal_name = result.legal_entity_score
-    address = result.address_score
-    reasons = list(result.reasons)
+KNOWN_RULE_FIELDS = {"business_name_score", "legal_entity_score", "address_score", "combined_score"}
+KNOWN_OPERATORS = {"gte", "gt", "lte", "lt", "eq"}
 
-    if business_name >= 92:
-        if address >= 80:
-            decision = "match"
-            reasons.append("decision:strong_business_name_strong_address")
-        elif address >= 45:
-            decision = "match"
-            reasons.append("decision:strong_business_name_medium_address")
-        else:
-            decision = "match"
-            reasons.append("decision:strong_business_name_weak_address_moved_business_allowed")
-    elif legal_name >= 92 and address >= 85:
-        decision = "match"
-        reasons.append("matched by legal entity/owner_name + strong address")
-    elif legal_name >= 92:
-        decision = "review"
-        reasons.append("decision:strong_legal_entity_weak_address_review")
-    elif business_name >= 75 and address >= 80:
-        decision = "review"
-        reasons.append("decision:medium_business_name_strong_address")
-    elif business_name < 75 and address >= 80:
-        decision = "review"
-        reasons.append("decision:weak_business_name_strong_address_not_auto_match")
-    else:
-        decision = "best_candidate_below_threshold"
-        reasons.append("decision:below_threshold")
+
+def _split_condition(condition_key: str) -> tuple[str, str]:
+    for operator in sorted(KNOWN_OPERATORS, key=len, reverse=True):
+        suffix = f"_{operator}"
+        if condition_key.endswith(suffix):
+            field = condition_key[: -len(suffix)]
+            if field not in KNOWN_RULE_FIELDS:
+                raise ConfigError(f"Unknown decision rule field: {field}")
+            return field, operator
+    raise ConfigError(f"Unknown decision rule operator in condition: {condition_key}")
+
+
+def _condition_matches(actual: float, operator: str, expected: float) -> bool:
+    if operator == "gte":
+        return actual >= expected
+    if operator == "gt":
+        return actual > expected
+    if operator == "lte":
+        return actual <= expected
+    if operator == "lt":
+        return actual < expected
+    if operator == "eq":
+        return actual == expected
+    raise ConfigError(f"Unknown decision rule operator: {operator}")
+
+
+def _rule_matches(result: MatchResult, rule: dict) -> bool:
+    for key, expected in rule["conditions"].items():
+        field, operator = _split_condition(str(key))
+        if not _condition_matches(float(getattr(result, field)), operator, float(expected)):
+            return False
+    return True
+
+
+def classify_result(result: MatchResult, config: MatchingConfig | None = None) -> MatchResult:
+    """Apply deterministic decision rules to one scored candidate."""
+    config = config or load_config()
+    reasons = list(result.reasons)
+    for rule in config.decision_rules:
+        if _rule_matches(result, rule):
+            decision = str(rule["decision"])
+            reasons.append(f"decision_rule:{rule['name']}")
+            if rule.get("reason"):
+                reasons.append(str(rule["reason"]))
+            return replace(result, decision=decision, reasons=tuple(reasons))
+
+    decision = config.default_decision
+    reasons.append(f"decision_rule:default:{decision}")
 
     return replace(result, decision=decision, reasons=tuple(reasons))
 
@@ -56,12 +76,12 @@ def no_candidate_result(record: BusinessRecord) -> MatchResult:
     )
 
 
-def choose_best_result(results: list[MatchResult], record: BusinessRecord | None = None) -> MatchResult:
+def choose_best_result(results: list[MatchResult], record: BusinessRecord | None = None, config: MatchingConfig | None = None) -> MatchResult:
     if not results:
         if record is None:
             raise ValueError("record is required when no candidate results exist")
         return no_candidate_result(record)
-    return classify_result(max(results, key=lambda r: (r.combined_score, r.business_name_score, r.legal_entity_score, r.address_score)))
+    return classify_result(max(results, key=lambda r: (r.combined_score, r.business_name_score, r.legal_entity_score, r.address_score)), config)
 
 
 def resolve_one_to_one(results: list[MatchResult]) -> list[MatchResult]:
