@@ -4,6 +4,7 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 
 from .models import AddressParts, BusinessRecord, MatchCandidate
+from .config import MatchingConfig, load_config
 from .normalize import generate_name_variants
 
 
@@ -38,10 +39,11 @@ def generate_address_keys(address: AddressParts) -> tuple[tuple[str, tuple[str, 
     return tuple(dict.fromkeys(keys))
 
 
-def _fingerprints_from_names(names: tuple[str, ...]) -> tuple[str, ...]:
+def _fingerprints_from_names(names: tuple[str, ...], config: MatchingConfig | None = None) -> tuple[str, ...]:
+    config = config or load_config()
     tokens: set[str] = set()
     for name in names:
-        variants = generate_name_variants(name) or (name,)
+        variants = generate_name_variants(name, config) or (name,)
         parts = [part for variant in variants for part in variant.split() if len(part) >= MIN_NAME_TOKEN_LENGTH and part != "and"]
         tokens.update(parts)
         if len(parts) >= 2:
@@ -49,12 +51,12 @@ def _fingerprints_from_names(names: tuple[str, ...]) -> tuple[str, ...]:
     return tuple(sorted(tokens))
 
 
-def generate_name_fingerprints(record: BusinessRecord) -> tuple[str, ...]:
-    return _fingerprints_from_names(record.all_normalized_names)
+def generate_name_fingerprints(record: BusinessRecord, config: MatchingConfig | None = None) -> tuple[str, ...]:
+    return _fingerprints_from_names(record.all_normalized_names, config)
 
 
-def generate_legal_name_fingerprints(record: BusinessRecord) -> tuple[str, ...]:
-    return _fingerprints_from_names(record.all_normalized_legal_names)
+def generate_legal_name_fingerprints(record: BusinessRecord, config: MatchingConfig | None = None) -> tuple[str, ...]:
+    return _fingerprints_from_names(record.all_normalized_legal_names, config)
 
 
 @dataclass

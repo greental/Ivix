@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from rapidfuzz import fuzz
 
 from .models import AddressParts, BusinessRecord, MatchCandidate, MatchResult
+from .config import MatchingConfig, load_config
 from .normalize import generate_name_variants
 
 
@@ -24,12 +25,13 @@ def _field_names(record: BusinessRecord) -> list[tuple[str, str]]:
     return [(field, value) for field, value in names if value]
 
 
-def _best_score_against(left_name: str, right_fields: list[tuple[str, str]], missing_reason: str) -> NameScore:
-    left_variants = generate_name_variants(left_name)
+def _best_score_against(left_name: str, right_fields: list[tuple[str, str]], missing_reason: str, config: MatchingConfig | None = None) -> NameScore:
+    config = config or load_config()
+    left_variants = generate_name_variants(left_name, config)
     scores: list[tuple[float, str, str, str]] = []
     for field, right_name in right_fields:
         for left_variant in left_variants:
-            for right_variant in generate_name_variants(right_name):
+            for right_variant in generate_name_variants(right_name, config):
                 token_score = float(fuzz.token_set_ratio(left_variant, right_variant))
                 ratio_score = float(fuzz.ratio(left_variant, right_variant))
                 scores.append((max(token_score, ratio_score), field, right_name, right_variant))
@@ -39,13 +41,13 @@ def _best_score_against(left_name: str, right_fields: list[tuple[str, str]], mis
     return NameScore(round(best_score, 2), field, raw_value, f"{field}:best={best_score:.1f} against '{variant}'")
 
 
-def score_business_name(candidate: MatchCandidate) -> NameScore:
-    return _best_score_against(candidate.record1.raw_name, _field_names(candidate.record2), "business_name:missing")
+def score_business_name(candidate: MatchCandidate, config: MatchingConfig | None = None) -> NameScore:
+    return _best_score_against(candidate.record1.raw_name, _field_names(candidate.record2), "business_name:missing", config)
 
 
-def score_legal_entity(candidate: MatchCandidate) -> NameScore:
+def score_legal_entity(candidate: MatchCandidate, config: MatchingConfig | None = None) -> NameScore:
     fields = [("owner_name", name) for name in candidate.record2.legal_entity_names]
-    return _best_score_against(candidate.record1.raw_name, fields, "legal_entity:missing")
+    return _best_score_against(candidate.record1.raw_name, fields, "legal_entity:missing", config)
 
 
 def score_name(candidate: MatchCandidate) -> tuple[float, list[str]]:
