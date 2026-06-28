@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 
 from .address_parser import UsAddressParser
+from .config import load_config
 from .io import ensure_output_not_input, inspect_headers, load_csv
 from .matching import run_matching
 from .output import write_debug, write_matches, write_selected_candidates
@@ -14,6 +15,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--dataset1", required=True, help="Path to first/read-only CSV dataset")
     parser.add_argument("--dataset2", required=True, help="Path to second/read-only CSV dataset")
     parser.add_argument("--output", required=True, help="Path for matches.csv output")
+    parser.add_argument("--config", help="Path to matching config JSON (default: config/default_matching_config.json)")
     parser.add_argument(
         "--selected-output",
         default="selected_candidates.csv",
@@ -29,6 +31,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+    config = load_config(args.config)
     input_paths = [args.dataset1, args.dataset2]
     ensure_output_not_input(args.output, input_paths)
     ensure_output_not_input(args.selected_output, input_paths)
@@ -39,10 +42,11 @@ def main(argv: list[str] | None = None) -> int:
     headers1, headers2 = inspect_headers(args.dataset1, args.dataset2)
     print(f"Loaded dataset1: {len(df1)} rows, headers={headers1}")
     print(f"Loaded dataset2: {len(df2)} rows, headers={headers2}")
+    print(f"Loaded matching config: {config.path}")
     parser = UsAddressParser()
-    records1, records2 = dataframes_to_query_and_index_records(df1, df2, parser)
+    records1, records2 = dataframes_to_query_and_index_records(df1, df2, parser, config)
     print("Assigned query side from full-address headers and index side from split-address headers")
-    run = run_matching(records1, records2)
+    run = run_matching(records1, records2, config)
     write_matches(run.selected_results, args.output, input_paths)
     write_selected_candidates(run.selected_results, args.selected_output, input_paths)
     write_debug(run.debug_results, args.debug_output, input_paths)

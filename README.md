@@ -16,10 +16,13 @@ python main.py \
   --dataset2 "dataset_2 (34).csv" \
   --output matches.csv \
   --selected-output selected_candidates.csv \
-  --debug-output match_debug.csv
+  --debug-output match_debug.csv \
+  --config config/default_matching_config.json
 ```
 
 Input CSVs are treated as read-only. The CLI refuses to write any output to the same path as either input file.
+
+If `--config` is omitted, the default `config/default_matching_config.json` is loaded.
 
 ## Outputs
 
@@ -37,6 +40,11 @@ id_1,id_2,address_score,business_name_score,legal_entity_score,best_name_field,b
 
 - Builds address and name/legal fallback indexes over dataset 2 only.
 - Dataset 1 records generate lookup keys and query those indexes; candidate generation does not scan dataset 2 per row.
+- CSV schemas and field mappings are configured in JSON, so column names such as id/name/address/street/zip can be changed without code edits.
+- Dataset roles are inferred from configured schemas, so CLI input order does not matter.
+- Blocking keys are configured in JSON. Scope fields such as country/state are supported but disabled by default for this assignment.
+- Business-name variants are configured in JSON, including token replacements, compact-space variants, initial-pair compaction, and a max variant cap.
+- Decision rules are configured as simple safe threshold rules over known score fields.
 - Address scoring treats missing optional fields such as state/full ZIP as neutral while requiring sufficient evidence coverage so sparse matches cannot become high confidence.
 - Business-name scoring compares generated normal/compact/variant forms using RapidFuzz.
 - Legal/entity matching (`owner_name`) is scored separately from business names and is only allowed to produce an automatic match with strong address evidence.
