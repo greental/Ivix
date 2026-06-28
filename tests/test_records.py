@@ -3,7 +3,14 @@ from __future__ import annotations
 import pandas as pd
 
 from ivix_matcher.address_parser import UsAddressParser
+from ivix_matcher.config import MatchingConfig, load_config
 from ivix_matcher.records import UnknownDatasetFormatError, dataframe_to_records, dataframes_to_query_and_index_records, dataset1_row_to_record, dataset2_row_to_record, detect_record_format
+
+
+def custom_config(raw_updates: dict) -> MatchingConfig:
+    raw = load_config().raw.copy()
+    raw.update(raw_updates)
+    return MatchingConfig(raw=raw, path=load_config().path)
 
 
 def test_dataset1_row_to_record_uses_full_address_and_name() -> None:
@@ -129,3 +136,48 @@ def test_dataframes_to_query_and_index_records_errors_when_roles_cannot_be_assig
         assert "Could not assign query/index roles" in str(exc)
     else:
         raise AssertionError("Expected UnknownDatasetFormatError")
+
+
+def test_split_address_missing_optional_legal_field_does_not_crash() -> None:
+    df = pd.DataFrame([
+        {
+            "id": "d2",
+            "account_name": "Acme Inc",
+            "name": "Acme Inc",
+            "street": "1 Main St",
+            "city": "Oakland",
+            "zip": "94612",
+        }
+    ])
+
+    records = dataframe_to_records(df, UsAddressParser())
+
+    assert records[0].record_id == "d2"
+    assert records[0].legal_entity_names == ()
+
+
+def test_schema_fields_can_be_changed_from_config() -> None:
+    config = custom_config(
+        {
+            "schemas": {
+                "full_address": {"id": "record_id", "business_name": "biz", "full_address": "addr", "country_default": "us"},
+                "split_address": {
+                    "id": "record_id",
+                    "business_name": "biz",
+                    "alternate_business_names": ["acct"],
+                    "legal_entity_names": ["owner"],
+                    "street": "st",
+                    "city": "town",
+                    "postal_code": "postal",
+                    "country_default": "us",
+                },
+            }
+        }
+    )
+    full = pd.DataFrame([{"record_id": "d1", "addr": "1 Main St, Oakland, CA 94612", "biz": "Acme"}])
+    split = pd.DataFrame([{"record_id": "d2", "biz": "Acme", "acct": "Acme", "owner": "Owner", "st": "1 Main St", "town": "Oakland", "postal": "94612"}])
+
+    query_records, index_records = dataframes_to_query_and_index_records(split, full, UsAddressParser(), config)
+
+    assert query_records[0].record_id == "d1"
+    assert index_records[0].record_id == "d2"
